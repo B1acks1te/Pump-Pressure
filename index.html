@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pump Pressure Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d10;
+    --panel:#161a1f;
+    --panel-alt:#1d232a;
+    --panel-raised:#232a32;
+    --border:#2a3138;
+    --border-light:#343d46;
+    --red:#c8102e;
+    --red-dim:#7a0c1e;
+    --amber:#ffb020;
+    --amber-dim:#7a5510;
+    --green:#3ddc84;
+    --text:#e8ecef;
+    --text-dim:#8b95a1;
+    --text-faint:#5a6570;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Manrope',sans-serif;overscroll-behavior-y:contain;}
+  body{padding-bottom:40px;}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
+
+  header{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg,#0e1114 0%, #0b0d10 100%);
+    border-bottom:3px solid var(--red);
+    padding:14px 16px 12px;
+  }
+  .brand{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  .brand h1{font-size:15px; letter-spacing:0.04em; margin:0; font-weight:800; color:var(--text);}
+  .brand .sub{font-size:11px; color:var(--text-faint); font-weight:600;}
+
+  .branch-toggle{
+    margin-top:12px;
+    display:grid; grid-template-columns:1fr 1fr; gap:8px;
+  }
+  .branch-btn{
+    border:2px solid var(--border-light);
+    background:var(--panel-alt);
+    color:var(--text-dim);
+    border-radius:10px;
+    padding:10px 8px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:20px;
+    font-weight:700;
+    text-align:center;
+    cursor:pointer;
+    transition:all .12s ease;
+    line-height:1.1;
+  }
+  .branch-btn .lbl{display:block; font-family:'Manrope',sans-serif; font-size:9px; font-weight:700; letter-spacing:.08em; color:var(--text-faint); margin-bottom:2px;}
+  .branch-btn.active{
+    border-color:var(--amber);
+    background:linear-gradient(180deg,#3a2c10,#241a08);
+    color:var(--amber);
+    box-shadow:0 0 0 1px var(--amber) inset, 0 2px 10px rgba(255,176,32,.15);
+  }
+  .branch-btn.active .lbl{color:#d99a2b;}
+
+  main{padding:16px; max-width:760px; margin:0 auto;}
+
+  /* Summary strip */
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .sum-card{
+    background:var(--panel);
+    border:2px solid var(--border);
+    border-radius:14px;
+    padding:12px 8px 10px;
+    text-align:center;
+    cursor:pointer;
+    position:relative;
+    transition:border-color .12s ease, transform .08s ease;
+  }
+  .sum-card:active{transform:scale(0.97);}
+  .sum-card.selected{border-color:var(--amber); background:var(--panel-alt);}
+  .sum-card.inactive{opacity:.45;}
+  .sum-card .d-label{font-size:10px; font-weight:800; letter-spacing:.08em; color:var(--text-faint); margin-bottom:6px;}
+  .sum-card.selected .d-label{color:var(--amber);}
+  .sum-card .d-value{font-size:26px; font-weight:700; line-height:1;}
+  .sum-card .d-value .unit{font-size:11px; font-weight:600; color:var(--text-faint); margin-left:2px;}
+  .sum-card .d-off{font-size:12px; color:var(--text-faint); font-weight:600; padding:6px 0;}
+  .sum-card .d-branch{font-size:10px; color:var(--text-faint); font-weight:600; margin-top:2px;}
+  .sum-card .warn-dot{
+    position:absolute; top:8px; right:8px; width:8px; height:8px; border-radius:50%;
+    background:var(--red); box-shadow:0 0 6px var(--red);
+  }
+
+  /* Delivery editor */
+  .editor{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:16px;
+    overflow:hidden;
+  }
+  .editor-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px;
+    border-bottom:1px solid var(--border);
+    background:var(--panel-alt);
+  }
+  .editor-head h2{margin:0; font-size:15px; font-weight:800; letter-spacing:.03em;}
+  .head-actions{display:flex; align-items:center; gap:14px;}
+  .reset-btn{
+    border:1px solid var(--border-light); background:transparent; color:var(--text-faint);
+    font-size:11px; font-weight:700; letter-spacing:.03em; padding:7px 10px; border-radius:8px;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .reset-btn:active{background:var(--red-dim); color:#fff; border-color:var(--red);}
+  .active-toggle{
+    display:flex; align-items:center; gap:8px;
+    font-size:12px; font-weight:700; color:var(--text-dim);
+  }
+  .switch{
+    width:44px; height:26px; border-radius:14px; background:var(--border-light);
+    position:relative; cursor:pointer; transition:background .15s ease; border:none;
+    flex-shrink:0;
+  }
+  .switch::after{
+    content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%;
+    background:#aab2bb; transition:transform .15s ease, background .15s ease;
+  }
+  .switch.on{background:var(--red-dim);}
+  .switch.on::after{transform:translateX(18px); background:var(--red);}
+
+  .section{padding:16px; border-bottom:1px solid var(--border);}
+  .section:last-child{border-bottom:none;}
+  .section-title{font-size:11px; font-weight:800; letter-spacing:.08em; color:var(--text-faint); margin-bottom:12px; text-transform:uppercase;}
+
+  /* Hose rows */
+  .hose-row{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .hose-row:last-child{border-bottom:none;}
+  .hose-chip{
+    width:46px; height:46px; border-radius:10px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--panel-raised); border:1px solid var(--border-light);
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:var(--text);
+  }
+  .hose-meta{flex:1; min-width:0;}
+  .hose-meta .hname{font-size:14px; font-weight:700; color:var(--text);}
+  .hose-meta .hsub{font-size:11px; color:var(--text-faint); margin-top:1px;}
+  .hose-meta .hsub-total{font-size:11px; color:var(--text-dim); font-weight:600; margin-top:4px;}
+  .hose-meta .hsub-total span{color:var(--amber); font-family:'JetBrains Mono',monospace; font-weight:700;}
+  .flow-pill{
+    display:inline-flex; margin-top:6px; border:1px solid var(--border-light); border-radius:8px; overflow:hidden;
+  }
+  .flow-pill button{
+    border:none; background:var(--panel-raised); color:var(--text-dim);
+    font-size:10px; font-weight:800; letter-spacing:.04em; padding:5px 9px; cursor:pointer;
+  }
+  .flow-pill button.active{background:var(--amber-dim); color:var(--amber);}
+
+  .stepper{display:flex; align-items:center; gap:0; flex-shrink:0;}
+  .step-btn{
+    width:44px; height:44px; border-radius:10px; border:1px solid var(--border-light);
+    background:var(--panel-raised); color:var(--text); font-size:22px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;
+    touch-action:manipulation;
+  }
+  .step-btn:active{background:var(--border-light); transform:scale(0.95);}
+  .step-count{
+    width:36px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700;
+  }
+
+  /* Head control */
+  .head-row{display:flex; align-items:center; gap:10px;}
+  .head-info{flex:1; min-width:0;}
+  .head-info .hname{font-size:13px; font-weight:700; color:var(--text-dim);}
+  .head-info .hnote{font-size:10px; color:var(--text-faint); margin-top:1px; font-weight:600;}
+  .head-btn{
+    width:36px; height:36px; border-radius:8px; border:1px solid var(--border-light);
+    background:var(--panel-raised); color:var(--text); font-size:18px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    touch-action:manipulation; flex-shrink:0;
+  }
+  .head-btn:active{background:var(--border-light); transform:scale(0.96);}
+  .head-value{width:64px; flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:3px;}
+  .head-value input{
+    width:38px; text-align:right; background:transparent; border:none; outline:none;
+    font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:var(--text);
+    padding:0; -moz-appearance:textfield;
+  }
+  .head-value input::-webkit-outer-spin-button, .head-value input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  .head-value input:focus{color:var(--amber);}
+  .head-value .unit{font-size:11px; color:var(--text-faint); font-weight:600;}
+
+  /* Run diagram */
+  .run-diagram{
+    display:flex; align-items:flex-end; gap:0; margin-top:14px; padding:10px 4px 0;
+    overflow-x:auto;
+  }
+  .run-node{display:flex; flex-direction:column; align-items:center; min-width:52px;}
+  .run-node .dot{width:10px; height:10px; border-radius:50%; background:var(--text-faint);}
+  .run-node.pump .dot{background:var(--amber);}
+  .run-node.branch .dot{background:var(--red);}
+  .run-node .rlabel{font-size:9px; color:var(--text-faint); margin-top:5px; font-weight:700; text-align:center; white-space:nowrap;}
+  .run-node .rval{font-size:10px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; margin-top:1px;}
+  .run-line{flex:1; height:2px; background:var(--border-light); min-width:20px; margin-bottom:5px;}
+
+  /* Result */
+  .result{
+    padding:18px 16px 20px;
+    background:linear-gradient(180deg, var(--panel-alt), var(--panel));
+  }
+  .breakdown{display:flex; flex-direction:column; gap:6px; margin-bottom:14px;}
+  .brow{display:flex; justify-content:space-between; font-size:13px; color:var(--text-dim); font-weight:600;}
+  .brow .bv{font-family:'JetBrains Mono',monospace; color:var(--text);}
+  .brow.total{border-top:1px solid var(--border-light); padding-top:8px; margin-top:2px; font-size:13px; color:var(--text); font-weight:700;}
+
+  .gauge{
+    background:var(--bg);
+    border:2px solid var(--border-light);
+    border-radius:14px;
+    padding:16px;
+    text-align:center;
+  }
+  .gauge .glabel{font-size:10px; font-weight:800; letter-spacing:.1em; color:var(--text-faint); margin-bottom:4px;}
+  .gauge .gval{font-family:'JetBrains Mono',monospace; font-size:48px; font-weight:800; color:var(--amber); line-height:1;}
+  .gauge .gval .unit{font-size:16px; color:var(--text-faint); font-weight:600; margin-left:4px;}
+  .gauge.over .gval{color:var(--red);}
+  .gauge.over{border-color:var(--red-dim);}
+  .warning{
+    margin-top:10px; display:flex; align-items:center; gap:8px;
+    background:rgba(200,16,46,.12); border:1px solid var(--red-dim); border-radius:10px;
+    padding:8px 10px; font-size:12px; font-weight:700; color:#ff7b8f;
+  }
+
+  .empty-state{padding:40px 20px; text-align:center; color:var(--text-faint);}
+  .empty-state .big{font-size:15px; font-weight:700; color:var(--text-dim); margin-bottom:6px;}
+
+  footer{text-align:center; color:var(--text-faint); font-size:10px; padding:20px 16px 8px; font-weight:600;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>PUMP PRESSURE CALCULATOR</h1>
+    <div class="sub">HOSE SKILLS &middot; NEMA</div>
+  </div>
+  <div class="branch-toggle" id="branchToggle"></div>
+</header>
+
+<main>
+  <div class="summary" id="summary"></div>
+  <div id="editorHost"></div>
+</main>
+
+<footer>Pump pressure = branch pressure + friction loss + head adjustment</footer>
+
+<script>
+// ---------- Reference data (Topic 17/18: Water Pressure) ----------
+const HOSE_TYPES = [
+  { key:'41', label:'41 mm', sectionM:30, flows:{ low:200 } },
+  { key:'45', label:'45 mm', sectionM:25, flows:{ low:150 } },
+  { key:'70', label:'70 mm', sectionM:25, flows:{ low:15, high:50 } },
+  { key:'90', label:'90 mm', sectionM:30, flows:{ high:75 } },
+];
+const MAX_WORKING_PRESSURE = 1050;
+
+function defaultHoses(){
+  return {
+    '41': { count:0 },
+    '45': { count:0 },
+    '70': { count:0, flow:'low' },
+    '90': { count:0 },
+  };
+}
+
+let state = {
+  branchPressure: 700,
+  selected: 0,
+  deliveries: [
+    { active:true,  hoses: defaultHoses(), height:0 },
+    { active:false, hoses: defaultHoses(), height:0 },
+    { active:false, hoses: defaultHoses(), height:0 },
+  ]
+};
+
+function computeDelivery(d){
+  let friction = 0;
+  HOSE_TYPES.forEach(spec=>{
+    const h = d.hoses[spec.key];
+    if(!h || !h.count) return;
+    const flow = spec.flows[h.flow] !== undefined ? h.flow : Object.keys(spec.flows)[0];
+    const perLength = spec.flows[flow];
+    friction += perLength * h.count;
+  });
+  const headLoss = 10 * d.height;
+  const branch = state.branchPressure;
+  const pump = branch + friction + headLoss;
+  return { friction, headLoss, pump, branch };
+}
+
+function fmtSigned(n){
+  return (n>0?'+':'') + n;
+}
+
+function render(){
+  renderBranchToggle();
+  renderSummary();
+  renderEditor();
+}
+
+function renderBranchToggle(){
+  const host = document.getElementById('branchToggle');
+  host.innerHTML = '';
+  [500,700].forEach(v=>{
+    const btn = document.createElement('div');
+    btn.className = 'branch-btn' + (state.branchPressure===v ? ' active':'');
+    btn.innerHTML = `<span class="lbl">BRANCH TARGET</span>${v} kPa`;
+    btn.onclick = ()=>{ state.branchPressure = v; render(); };
+    host.appendChild(btn);
+  });
+}
+
+function renderSummary(){
+  const host = document.getElementById('summary');
+  host.innerHTML = '';
+  state.deliveries.forEach((d,i)=>{
+    const card = document.createElement('div');
+    card.className = 'sum-card' + (i===state.selected?' selected':'') + (!d.active?' inactive':'');
+    if(d.active){
+      const r = computeDelivery(d);
+      const over = r.pump > MAX_WORKING_PRESSURE;
+      card.innerHTML = `
+        ${over?'<div class="warn-dot"></div>':''}
+        <div class="d-label">DELIVERY ${i+1}</div>
+        <div class="d-value mono">${Math.round(r.pump)}<span class="unit">kPa</span></div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="d-label">DELIVERY ${i+1}</div>
+        <div class="d-off">Not in use</div>
+      `;
+    }
+    card.onclick = ()=>{ state.selected = i; render(); };
+    host.appendChild(card);
+  });
+}
+
+function renderEditor(){
+  const host = document.getElementById('editorHost');
+  const i = state.selected;
+  const d = state.deliveries[i];
+  const r = computeDelivery(d);
+  const over = r.pump > MAX_WORKING_PRESSURE;
+
+  let hoseRows = HOSE_TYPES.map(spec=>{
+    const h = d.hoses[spec.key];
+    const flows = Object.keys(spec.flows);
+    const flow = spec.flows[h.flow] !== undefined ? h.flow : flows[0];
+    const perLength = spec.flows[flow];
+    let flowPill = '';
+    if(flows.length > 1){
+      flowPill = `<div class="flow-pill">${flows.map(f=>
+        `<button data-hose="${spec.key}" data-flow="${f}" class="${h.flow===f?'active':''}">${f.toUpperCase()}</button>`
+      ).join('')}</div>`;
+    }
+    return `
+      <div class="hose-row">
+        <div class="hose-chip">${spec.label.replace(' mm','')}</div>
+        <div class="hose-meta">
+          <div class="hname">${spec.label} hose</div>
+          <div class="hsub">${spec.sectionM} m sections &middot; ${perLength} kPa/section${flows.length===1?' &middot; '+flows[0]+' flow':''}</div>
+          ${flowPill}
+          ${h.count>0?`<div class="hsub-total">${h.count} &times; ${perLength} = <span>${perLength*h.count} kPa</span></div>`:''}
+        </div>
+        <div class="stepper">
+          <button class="step-btn" data-hose="${spec.key}" data-delta="-1">&minus;</button>
+          <div class="step-count mono">${h.count}</div>
+          <button class="step-btn" data-hose="${spec.key}" data-delta="1">+</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // run diagram
+  let nodes = [`<div class="run-node pump"><div class="dot"></div><div class="rlabel">PUMP</div><div class="rval">${Math.round(r.pump)} kPa</div></div>`];
+  HOSE_TYPES.forEach(spec=>{
+    const h = d.hoses[spec.key];
+    if(!h.count) return;
+    const flow = spec.flows[h.flow]!==undefined ? h.flow : Object.keys(spec.flows)[0];
+    const per = spec.flows[flow];
+    nodes.push(`<div class="run-line"></div>`);
+    nodes.push(`<div class="run-node"><div class="dot"></div><div class="rlabel">${spec.label} &times;${h.count}</div><div class="rval">&minus;${per*h.count}</div></div>`);
+  });
+  nodes.push(`<div class="run-line"></div>`);
+  nodes.push(`<div class="run-node branch"><div class="dot"></div><div class="rlabel">BRANCH</div><div class="rval">${r.branch} kPa</div></div>`);
+  const runDiagram = nodes.join('');
+
+  host.innerHTML = `
+    <div class="editor">
+      <div class="editor-head">
+        <h2>DELIVERY ${i+1}</h2>
+        <div class="head-actions">
+          <button class="reset-btn" id="resetDelivery">Reset</button>
+          <div class="active-toggle">
+            ${d.active ? 'In use' : 'Not in use'}
+            <button class="switch ${d.active?'on':''}" id="activeSwitch"></button>
+          </div>
+        </div>
+      </div>
+
+      ${d.active ? `
+      <div class="section">
+        <div class="section-title">Hose lengths</div>
+        ${hoseRows}
+        <div class="run-diagram">${runDiagram}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Height to branch (head)</div>
+        <div class="head-row">
+          <div class="head-info">
+            <div class="hname">${d.height===0?'Level with pump':(d.height>0?'Branch above pump':'Branch below pump')}</div>
+            <div class="hnote">10 kPa ${d.height>=0?'added':'saved'} per metre</div>
+          </div>
+          <button class="head-btn" id="headMinus">&minus;</button>
+          <div class="head-value">
+            <input type="number" id="heightInput" value="${d.height}" step="1" inputmode="numeric">
+            <span class="unit">m</span>
+          </div>
+          <button class="head-btn" id="headPlus">&plus;</button>
+        </div>
+      </div>
+
+      <div class="result">
+        <div class="breakdown">
+          <div class="brow"><span>Branch pressure</span><span class="bv">${r.branch} kPa</span></div>
+          <div class="brow"><span>Friction loss</span><span class="bv">+${r.friction} kPa</span></div>
+          <div class="brow"><span>Head adjustment</span><span class="bv">${fmtSigned(r.headLoss)} kPa</span></div>
+          <div class="brow total"><span>Pump pressure required</span><span class="bv">${Math.round(r.pump)} kPa</span></div>
+        </div>
+        <div class="gauge ${over?'over':''}">
+          <div class="glabel">SET PUMP TO</div>
+          <div class="gval">${Math.round(r.pump)}<span class="unit">kPa</span></div>
+        </div>
+        ${over ? `<div class="warning">Exceeds ${MAX_WORKING_PRESSURE} kPa max working pressure for delivery hose</div>` : ''}
+      </div>
+      ` : `
+      <div class="empty-state">
+        <div class="big">Delivery ${i+1} is not in use</div>
+        <div>Turn it on to build a hose run for this line.</div>
+      </div>
+      `}
+    </div>
+  `;
+
+  // wire events
+  const sw = document.getElementById('activeSwitch');
+  if(sw) sw.onclick = ()=>{ d.active = !d.active; render(); };
+
+  const rb = document.getElementById('resetDelivery');
+  if(rb) rb.onclick = ()=>{
+    d.hoses = defaultHoses();
+    d.height = 0;
+    render();
+  };
+
+  host.querySelectorAll('.step-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const key = btn.getAttribute('data-hose');
+      const delta = parseInt(btn.getAttribute('data-delta'),10);
+      const h = d.hoses[key];
+      h.count = Math.max(0, Math.min(20, h.count + delta));
+      render();
+    };
+  });
+
+  host.querySelectorAll('.flow-pill button').forEach(btn=>{
+    btn.onclick = ()=>{
+      const key = btn.getAttribute('data-hose');
+      const flow = btn.getAttribute('data-flow');
+      d.hoses[key].flow = flow;
+      render();
+    };
+  });
+
+  const hm = document.getElementById('headMinus');
+  const hp = document.getElementById('headPlus');
+  if(hm) hm.onclick = ()=>{ d.height = Math.max(-50, d.height - 1); render(); };
+  if(hp) hp.onclick = ()=>{ d.height = Math.min(50, d.height + 1); render(); };
+
+  const hi = document.getElementById('heightInput');
+  if(hi){
+    const commit = ()=>{
+      let v = parseInt(hi.value, 10);
+      if(isNaN(v)) v = 0;
+      v = Math.max(-50, Math.min(50, v));
+      d.height = v;
+      render();
+    };
+    hi.onchange = commit;
+    hi.onkeydown = (e)=>{ if(e.key==='Enter'){ hi.blur(); } };
+  }
+}
+
+render();
+</script>
+</body>
+</html>

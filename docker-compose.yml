@@ -1,0 +1,7 @@
+services:
+  pump-pressure:
+    build: .
+    container_name: pump-pressure
+    restart: unless-stopped
+    ports:
+      - "6709:80"
