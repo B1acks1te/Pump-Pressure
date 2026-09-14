@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Pump Pressure Calculator</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0d10">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pump Pressure">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -35,9 +41,23 @@
     border-bottom:3px solid var(--red);
     padding:14px 16px 12px;
   }
-  .brand{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  .brand{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .sync-btn{
+    display:flex; align-items:center; gap:5px;
+    background:var(--panel-alt); border:1px solid var(--border-light); color:var(--text-dim);
+    font-family:'Manrope',sans-serif; font-size:11px; font-weight:700;
+    border-radius:8px; padding:7px 10px; cursor:pointer; touch-action:manipulation; flex-shrink:0;
+  }
+  .sync-btn:active{background:var(--border-light);}
+  .sync-btn.syncing #syncIcon{display:inline-block; animation:spin .8s linear infinite;}
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .sync-status{
+    font-size:10px; font-weight:700; color:var(--text-faint); text-align:right;
+    margin-top:6px; min-height:12px;
+  }
+  .sync-status.offline{color:var(--red);}
+  .sync-status.ok{color:var(--green);}
   .brand h1{font-size:15px; letter-spacing:0.04em; margin:0; font-weight:800; color:var(--text);}
-  .brand .sub{font-size:11px; color:var(--text-faint); font-weight:600;}
 
   .branch-toggle{
     margin-top:12px;
@@ -253,9 +273,12 @@
 <header>
   <div class="brand">
     <h1>PUMP PRESSURE CALCULATOR</h1>
-    <div class="sub">HOSE SKILLS &middot; NEMA</div>
+    <button class="sync-btn" id="syncBtn" title="Check for updates">
+      <span id="syncIcon">&#8635;</span> <span id="syncLabel">Sync</span>
+    </button>
   </div>
   <div class="branch-toggle" id="branchToggle"></div>
+  <div class="sync-status" id="syncStatus"></div>
 </header>
 
 <main>
@@ -294,6 +317,24 @@ let state = {
   ]
 };
 
+const STATE_KEY = 'pump-pressure-state-v1';
+
+function saveState(){
+  try{ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
+  catch(e){ /* storage unavailable — fail silently, app still works this session */ }
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STATE_KEY);
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(saved && Array.isArray(saved.deliveries) && saved.deliveries.length === 3){
+      state = saved;
+    }
+  }catch(e){ /* corrupt/old data — start fresh */ }
+}
+
 function computeDelivery(d){
   let friction = 0;
   HOSE_TYPES.forEach(spec=>{
@@ -317,6 +358,7 @@ function render(){
   renderBranchToggle();
   renderSummary();
   renderEditor();
+  saveState();
 }
 
 function renderBranchToggle(){
@@ -513,7 +555,56 @@ function renderEditor(){
   }
 }
 
+loadState();
 render();
+
+// ---------- Offline support / manual sync ----------
+let swRegistration = null;
+
+function setSyncStatus(msg, cls){
+  const el = document.getElementById('syncStatus');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'sync-status' + (cls ? ' '+cls : '');
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg=>{
+        swRegistration = reg;
+        setSyncStatus(navigator.onLine ? 'Ready — offline copy saved' : 'Offline — using saved copy', navigator.onLine ? 'ok' : 'offline');
+      })
+      .catch(()=> setSyncStatus('Offline mode unavailable', 'offline'));
+  });
+}
+
+window.addEventListener('online', ()=> setSyncStatus('Back online', 'ok'));
+window.addEventListener('offline', ()=> setSyncStatus('Offline — using saved copy', 'offline'));
+
+document.getElementById('syncBtn').onclick = ()=>{
+  const btn = document.getElementById('syncBtn');
+  if(!navigator.onLine){
+    setSyncStatus('No connection — working from last synced copy', 'offline');
+    return;
+  }
+  btn.classList.add('syncing');
+  setSyncStatus('Checking for updates…');
+  const done = (msg, cls)=>{
+    btn.classList.remove('syncing');
+    setSyncStatus(msg, cls);
+  };
+  if(swRegistration){
+    swRegistration.update()
+      .then(()=>{
+        done('Synced — reloading…', 'ok');
+        setTimeout(()=> location.reload(), 500);
+      })
+      .catch(()=> done('Sync failed — still working offline', 'offline'));
+  } else {
+    location.reload();
+  }
+};
 </script>
 </body>
 </html>
